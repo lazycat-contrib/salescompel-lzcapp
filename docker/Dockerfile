@@ -3,11 +3,14 @@
 # 构建上下文 = 打包仓库根（build.sh 已按 UPSTREAM.conf 固定 commit 把上游源码放到 ./upstream）。
 
 # ---- 阶段 1：构建 Vue 前端（上游要求 Node >= 22.12）----
+# 注意：web/src/i18n.ts 通过 ../../locales/languages.json 引用仓库根的 locales/，
+# 因此需把 upstream/locales/ 一并放到 /src/locales/。
 FROM node:24-alpine AS webbuild
 WORKDIR /src/web
 COPY upstream/web/package.json upstream/web/package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY upstream/web/ ./
+COPY upstream/locales/ /src/locales/
 # vite build 输出到 /src/web/dist
 RUN npm run build
 
