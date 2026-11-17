@@ -1,0 +1,32 @@
+name: Build and publish LazyCat LPK
+
+on:
+  schedule:
+    # 上游版本随 UPSTREAM.conf 手动推进；此处仅作兜底重建（UTC）
+    - cron: "13 4 * * 1"
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: lazycat-salescompel
+  cancel-in-progress: false
+
+jobs:
+  lazycat:
+    uses: ca-x/lazycat-github-action/.github/workflows/lazycat.yml@v1
+    with:
+      operation: auto
+      config: .github/lazycat-action.yml
+      versioned-release-asset: true
+      toolchains: docker
+    secrets:
+      APPSTORE_URL: ${{ secrets.APPSTORE_URL }}
+      APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}

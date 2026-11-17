@@ -1,0 +1,9 @@
+manifest: ./lzc-manifest.yml
+pkgout: ./
+icon: ./icon.png
+buildscript: ./build.sh
+images:
+  salescompel:
+    dockerfile: ./docker/Dockerfile
+    context: .
+    builder: local

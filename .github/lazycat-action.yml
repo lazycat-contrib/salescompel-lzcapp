@@ -1,0 +1,29 @@
+version: 1
+
+project:
+  root: .
+  build_config: lzc-build.yml
+  package_file: package.yml
+  output: .lazycat-build/salescompel.lpk
+  target_arch: amd64
+
+update:
+  strategy: publish
+  # 上游无 Release/镜像；版本随打包仓库走（拉取的上游 commit 固定在 UPSTREAM.conf）。
+  version_source:
+    type: git
+
+build:
+  toolchains:
+    - kind: docker
+  run_buildscript: true
+  # 源码不入库：build.sh 在构建前拉取上游（不允许存源码进镜像层以外的地方）
+
+stores:
+  private:
+    enabled: true
+    skip_if_version_exists: true
+    name: SalesCompel
+    summary: "SalesCompel 懒猫微服打包：开源 Salesforce 替代（净室复刻，Go/PostgreSQL + Vue，Apache-2.0，0.x 早期预览）。"
+  official:
+    enabled: false

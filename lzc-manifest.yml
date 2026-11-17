@@ -1,0 +1,130 @@
+application:
+  subdomain: salescompel
+  multi_instance: false
+  # 自带账号体系（OAuth 授权页 username+密码表单登录）；登录页自动填充实现免密。
+  public_path:
+    - /
+  upstreams:
+    - location: /
+      backend: http://salescompel:8080/
+  injects:
+    # browser 阶段：仅在 OAuth 登录页 hash 路由执行自动填充
+    - id: login-autofill
+      when:
+        - /services/oauth2/authorize
+      do:
+        - src: builtin://simple-inject-password
+          params:
+            user: "{{ .U.admin_user }}"
+            password: "{{ .U.admin_password }}"
+services:
+  salescompel:
+    # 源码构建（context=upstream，多阶段 Dockerfile）；由 Action 以 builder:local 内嵌进 LPK
+    image: embed:salescompel
+    depends_on:
+      - postgres
+    environment:
+      # 迁移/引导走超级用户（operator 连接；迁移需建 schema/授权，之后运行时绝不用它）
+      - MIGRATION_DATABASE_URL=postgres://postgres:{{ stable_secret "salescompel_pg_super" }}@postgres:5432/salescompel
+      # 运行时双账号（上游安全模型：records/identity 登录角色必须不同、无 owner 权限）。
+      # 密码与 pg-init/01-roles.sql 中的派生值一致。
+      - DATABASE_URL=postgres://sc_records_login:{{ stable_secret "salescompel_pg_records" }}@postgres:5432/salescompel
+      - AUTH_DATABASE_URL=postgres://sc_identity_login:{{ stable_secret "salescompel_pg_identity" }}@postgres:5432/salescompel
+      # 首次启动种子：默认租户 + 管理员用户/令牌（provision 与 user create 幂等）
+      - SALESCOMPEL_TENANT=00D000000000001EAA
+      - SALESCOMPEL_USER=005000000000001AAA
+      - SALESCOMPEL_USERNAME={{ .U.admin_user }}
+      - SALESCOMPEL_PASSWORD={{ .U.admin_password }}
+      - SALESCOMPEL_ROLE=admin
+      - SALESCOMPEL_TOKEN={{ stable_secret "salescompel_admin_token" }}
+    setup_script: |
+      # 首次启动准备（幂等，可重跑）：
+      # 1) 写角色引导 SQL 到共享卷（postgres 首次启动经 /docker-entrypoint-initdb.d 执行）；
+      # 2) 等待 postgres 就绪后跑迁移、建租户/管理员；3) 启动 serve。
+      set -e
+      mkdir -p /lzcapp/var/pg-init
+      cat > /lzcapp/var/pg-init/01-roles.sql <<'EOSQL'
+      -- SalesCompel 角色引导（幂等；登录角色密码与 manifest 环境变量的 stable_secret 派生值一致）
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='salescompel_owner') THEN
+          CREATE ROLE salescompel_owner NOLOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='salescompel_records') THEN
+          CREATE ROLE salescompel_records NOLOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='salescompel_identity') THEN
+          CREATE ROLE salescompel_identity NOLOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='sc_records_login') THEN
+          CREATE ROLE sc_records_login LOGIN PASSWORD '{{ stable_secret "salescompel_pg_records" }}' IN ROLE salescompel_records;
+        END IF;
+        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='sc_identity_login') THEN
+          CREATE ROLE sc_identity_login LOGIN PASSWORD '{{ stable_secret "salescompel_pg_identity" }}' IN ROLE salescompel_identity;
+        END IF;
+      END
+      $$;
+      EOSQL
+      chown 999:999 /lzcapp/var/pg-init/01-roles.sql 2>/dev/null || true
+      # 迁移（重试等待 postgres 就绪；migrate up 幂等）
+      ok=""
+      for i in $(seq 1 60); do
+        if salescompel migrate up; then ok=1; break; fi
+        sleep 2
+      done
+      [ -n "$ok" ] || { echo "salescompel: postgres 未就绪，迁移失败" >&2; exit 1; }
+      # 建租户/管理员（已存在时报错，忽略）
+      salescompel provision 2>/dev/null || true
+      salescompel user create 2>/dev/null || salescompel user set-password 2>/dev/null || true
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://127.0.0.1:8080/healthz || exit 1
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    binds:
+      # postgres 初始化 SQL（角色引导）；postgres 服务 bind 到 /docker-entrypoint-initdb.d
+      - /lzcapp/var/pg-init:/lzcapp/var/pg-init
+      # 预留应用数据目录
+      - /lzcapp/var/data:/lzcapp/var/data
+    mem_limit: 1g
+  postgres:
+    # upstream: docker.io/library/postgres:17-alpine（git 版本源不走 Action 镜像管理；直接写加速地址）
+    image: docker.1ms.run/library/postgres:17-alpine
+    environment:
+      - POSTGRES_DB=salescompel
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD={{ stable_secret "salescompel_pg_super" }}
+    binds:
+      # 首次启动执行 01-roles.sql（角色引导）
+      - /lzcapp/var/pg-init:/docker-entrypoint-initdb.d
+      # 数据持久化
+      - /lzcapp/var/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d salescompel
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 1g
+
+usage: |
+  SalesCompel 是开源免费的 Salesforce 替代项目（净室复刻，Apache-2.0）：Go/PostgreSQL 后端 +
+  Salesforce 兼容 REST/OAuth API（/services/data/v65.0）+ 早期 Vue CRM 界面。0.x 早期预览，
+  功能覆盖有限（Apex/Flow/自定义 UI 不在首版范围）。
+
+  【首次使用】
+  1. 打开应用进入登录页，已自动填充管理员账号（安装参数里的用户名/密码，也可手动输入）。
+  2. 管理员账号在首次启动时由系统自动创建（admin 角色，属默认租户 00D000000000001EAA）。
+  3. 兼容 API：/services/data/v65.0/（REST、SOQL 查询、Composite）；OpenAPI 描述见
+     /services/data/v65.0/openapi.yaml；OIDC 发现文档 /.well-known/openid-configuration。
+
+  【说明】
+  - 内置 PostgreSQL 17（数据持久化在应用数据目录）；数据库角色按上游安全模型分离
+    （records/identity 双登录账号，迁移用独立 operator 连接）。
+  - 上游仍处早期开发阶段：API/配置在 0.x 小版本间可能变化，升级前阅读上游说明。
+  - 上游源码按 UPSTREAM.conf 固定 commit 拉取构建（不入打包仓库）；
+    开源地址 https://github.com/occupysaas/salescompel

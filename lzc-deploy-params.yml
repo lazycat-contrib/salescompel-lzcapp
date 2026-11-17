@@ -1,0 +1,38 @@
+# 安装参数：SalesCompel 管理员账号（首次启动种子，登录页自动填充实现免密）
+params:
+  - id: admin_user
+    type: string
+    name: "Admin Username"
+    description: "SalesCompel administrator username (seeded on first start)"
+    default_value: "admin"
+    optional: true
+
+  - id: admin_password
+    type: secret
+    name: "Admin Password"
+    description: "SalesCompel administrator password (seeded on first start, auto-generated)"
+    default_value: "$random(len=20)"
+    optional: true
+
+locales:
+  zh:
+    admin_user:
+      name: "管理员用户名"
+      description: "SalesCompel 管理员用户名（首次启动时创建）"
+    admin_password:
+      name: "管理员密码"
+      description: "SalesCompel 管理员密码（首次启动时创建，默认随机生成）"
+  zh_CN:
+    admin_user:
+      name: "管理员用户名"
+      description: "SalesCompel 管理员用户名（首次启动时创建）"
+    admin_password:
+      name: "管理员密码"
+      description: "SalesCompel 管理员密码（首次启动时创建，默认随机生成）"
+  en:
+    admin_user:
+      name: "Admin Username"
+      description: "SalesCompel administrator username (seeded on first start)"
+    admin_password:
+      name: "Admin Password"
+      description: "SalesCompel administrator password (seeded on first start, auto-generated)"

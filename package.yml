@@ -1,0 +1,21 @@
+package: community.lazycat.app.salescompel
+version: 0.1.0
+name: SalesCompel
+description: "Open-source free Salesforce alternative (clean-room recreation): Go/PostgreSQL platform with a Salesforce-compatible REST/OAuth API, multi-tenant records and an early Vue CRM UI (accounts, contacts, list and record workflows). Early 0.x preview."
+min_os_version: 1.5.0
+homepage: https://github.com/occupysaas/salescompel
+author: occupysaas
+license: Apache-2.0
+permissions:
+  required:
+    - net.internet
+locales:
+  zh:
+    name: "SalesCompel"
+    description: "开源免费的 Salesforce 替代品（净室复刻）：Go/PostgreSQL 平台，提供与 Salesforce 兼容的 REST/OAuth API、多租户数据与早期 Vue CRM 界面（客户、联系人、列表与记录工作流）。0.x 早期预览版。"
+  zh_CN:
+    name: "SalesCompel"
+    description: "开源免费的 Salesforce 替代品（净室复刻）：Go/PostgreSQL 平台，提供与 Salesforce 兼容的 REST/OAuth API、多租户数据与早期 Vue CRM 界面（客户、联系人、列表与记录工作流）。0.x 早期预览版。"
+  en:
+    name: "SalesCompel"
+    description: "Open-source free Salesforce alternative (clean-room recreation): Go/PostgreSQL platform with a Salesforce-compatible REST/OAuth API, multi-tenant records and an early Vue CRM UI (accounts, contacts, list and record workflows). Early 0.x preview."

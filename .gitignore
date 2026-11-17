@@ -1,0 +1,4 @@
+*.lpk
+.lazycat-build/
+upstream/
+.DS_Store
